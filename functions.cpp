@@ -2,27 +2,24 @@
 https://github.com/bhassani/EternalBlueC/blob/2bbf166a650b5ddab9e728794f65ebdc2d6eedcb/EternalBlue%20All%20in%20one/utils/ex_string.c
 */
 
-int replace_str(char *pStrBuf, char *pOld, char *pNew);
+int replace_str(char* pStrBuf, char* pOld, char* pNew);
 
-static int _str_replace(char *p_result, char* p_source, char* p_seach, char *p_repstr)
-{
+static int _str_replace(char* p_result, char* p_source, char* p_seach, char* p_repstr) {
     int c = 0;
     int repstr_leng = 0;
     int searchstr_leng = 0;
-    char *p1;
-    char *presult = p_result;
-    char *psource = p_source;
-    char *prep = p_repstr;
-    char *pseach = p_seach;
+    char* p1;
+    char* presult = p_result;
+    char* psource = p_source;
+    char* prep = p_repstr;
+    char* pseach = p_seach;
     int nLen = 0;
     repstr_leng = strlen(prep);
     searchstr_leng = strlen(pseach);
 
-    do
-    {
+    do {
         p1 = strstr(psource, p_seach);
-        if (p1 == 0)
-        {
+        if (p1 == 0) {
             strcpy(presult, psource);
             return c;
         }
@@ -36,27 +33,24 @@ static int _str_replace(char *p_result, char* p_source, char* p_seach, char *p_r
         memcpy(presult + nLen, p_repstr, repstr_leng);
         psource = p1 + searchstr_leng;
         presult = presult + nLen + repstr_leng;
-    }
-    while (p1);
+    } while (p1);
 
     return c;
 }
 
 //used to replace the treeid and userid placeholders in the EternalBlue code found in Wannacry
 //Sample: replace_str(EternalBluePacket1,"__TREEID__PLACEHOLDER__", treeid_from_packet)
-int replace_str(char *pStrBuf, char *pOld, char *pNew)
-{
+int replace_str(char* pStrBuf, char* pOld, char* pNew) {
     int newLen = 0;
-    char *pTmpBuf = NULL;
+    char* pTmpBuf = NULL;
 
     newLen = strlen(pStrBuf) + 1000;
-    pTmpBuf = (char *)malloc(newLen);
-    if(pTmpBuf == NULL)
+    pTmpBuf = (char*)malloc(newLen);
+    if (pTmpBuf == NULL)
         return -1;
     memset(pTmpBuf, 0x00, newLen);
 
-    if(_str_replace(pTmpBuf, pStrBuf, pOld, pNew) <= 0)
-    {
+    if (_str_replace(pTmpBuf, pStrBuf, pOld, pNew) <= 0) {
         free(pTmpBuf);
         return -2;
     }
